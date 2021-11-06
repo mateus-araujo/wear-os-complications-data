@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.support.wearable.complications.ProviderUpdateRequester
 import androidx.core.content.edit
 
 /**
@@ -42,6 +43,10 @@ class ComplicationTapBroadcastReceiver : BroadcastReceiver() {
         // Update data for complication.
         value = (value + 1) % MAX_NUMBER
         sharedPreferences.edit { putInt(preferenceKey, value) }
+
+        // Request an update for the complication that has just been tapped.
+        val requester = ProviderUpdateRequester(context, provider)
+        requester.requestUpdate(complicationId)
     }
 
     companion object {

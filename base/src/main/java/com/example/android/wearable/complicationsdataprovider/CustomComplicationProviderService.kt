@@ -15,9 +15,13 @@
  */
 package com.example.android.wearable.complicationsdataprovider
 
+import android.content.ComponentName
+import android.support.wearable.complications.ComplicationData
 import android.support.wearable.complications.ComplicationManager
 import android.support.wearable.complications.ComplicationProviderService
+import android.support.wearable.complications.ComplicationText
 import android.util.Log
+import java.util.*
 
 /**
  * Example watch face complication data provider provides a number that can be incremented on tap.
@@ -54,6 +58,59 @@ class CustomComplicationProviderService : ComplicationProviderService() {
         complicationManager: ComplicationManager
     ) {
         Log.d(TAG, "onComplicationUpdate() id: $complicationId")
+
+        // Used to create a unique key to use with SharedPreferences for this complication.
+        val thisProvider = ComponentName(this, javaClass)
+
+        // We pass the complication id, so we can only update the specific complication tapped.
+        val complicationPendingIntent =
+            ComplicationTapBroadcastReceiver.getToggleIntent(
+                this, thisProvider, complicationId
+            )
+
+        // Retrieves your data, in this case, we grab an incrementing number from SharedPrefs.
+        val preferences = getSharedPreferences(
+            ComplicationTapBroadcastReceiver.COMPLICATION_PROVIDER_PREFERENCES_FILE_KEY,
+            0
+        )
+        val number = preferences.getInt(
+            ComplicationTapBroadcastReceiver
+                .getPreferenceKey(thisProvider, complicationId), 0
+        )
+        val numberText = String.format(Locale.getDefault(), "%d!", number)
+        val complicationData = when (dataType) {
+            ComplicationData.TYPE_SHORT_TEXT -> ComplicationData
+                .Builder(ComplicationData.TYPE_SHORT_TEXT)
+                .setShortText(ComplicationText.plainText(numberText))
+                .setTapAction(complicationPendingIntent)
+                .build()
+            ComplicationData.TYPE_LONG_TEXT -> ComplicationData
+                .Builder(ComplicationData.TYPE_LONG_TEXT)
+                .setLongText(ComplicationText.plainText("Number: $numberText"))
+                .setTapAction(complicationPendingIntent)
+                .build()
+            ComplicationData.TYPE_RANGED_VALUE -> ComplicationData
+                .Builder(ComplicationData.TYPE_RANGED_VALUE)
+                .setValue(number.toFloat())
+                .setMinValue(0f)
+                .setMaxValue(ComplicationTapBroadcastReceiver.MAX_NUMBER.toFloat())
+                .setShortText(ComplicationText.plainText(numberText))
+                .setTapAction(complicationPendingIntent)
+                .build()
+            else -> {
+                if (Log.isLoggable(TAG, Log.WARN)) {
+                    Log.w(TAG, "Unexpected complication type $dataType")
+                }
+                null
+            }
+        }
+        if (complicationData != null) {
+            complicationManager.updateComplicationData(complicationId, complicationData)
+        } else {
+            // If no data is sent, we still need to inform the ComplicationManager, so the update
+            // job can finish and the wake lock isn't held any longer than necessary.
+            complicationManager.noUpdateRequired(complicationId)
+        }
     }
 
     /*
